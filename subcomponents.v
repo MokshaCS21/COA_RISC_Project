@@ -292,67 +292,75 @@ module Instruction_Memory_4096(clk, Reset, Address, InstRead,
 endmodule
 
 // ====================================================================
-// SRAM256  (NEW – 8-bit address, used inside Stack256)
+// SRAM256  (Behavioral coding only – 8-bit address)
 // ====================================================================
 module SRAM_256(clk, Reset, Address, SRAMRead, SRAMWrite, Datain, Dataout);
     input  clk, Reset, SRAMRead, SRAMWrite;
     input  [7:0] Address;
-    input  [11:0] Datain;
-    output reg [11:0] Dataout;
-    reg [11:0] mem [0:255];
+    input  [7:0] Datain;
+    output wire [7:0] Dataout;
+
+    reg [7:0] datamemsmall [0:255];
     integer i;
+
+    // Write: synchronous (posedge Clk) when SRAMWrite = 1
     always @(posedge clk) begin
         if (Reset) begin
-            for (i = 0; i < 256; i = i + 1) mem[i] <= 12'h000;
+            for (i = 0; i < 256; i = i + 1) datamemsmall[i] <= 8'h00;
         end else if (SRAMWrite) begin
-            mem[Address] <= Datain;
-        end else if (SRAMRead) begin
-            Dataout <= mem[Address];
+            datamemsmall[Address] <= Datain;
         end
     end
+
+    // Read: combinational, only when SRAMRead = 1. If SRAMRead = 0 → Dataout = 8'b0
+    assign Dataout = (SRAMRead) ? datamemsmall[Address] : 8'b00;
 endmodule
 
 // ====================================================================
-// SRAM_4096  (Renamed)
+// SRAM4096 (Behavioral coding only – 12-bit address)
 // ====================================================================
 module SRAM_4096(clk, Reset, Address, SRAMRead, SRAMWrite, Datain, Dataout);
     input  clk, Reset, SRAMRead, SRAMWrite;
     input  [11:0] Address;
     input  [7:0]  Datain;
-    output reg [7:0] Dataout;
-    reg [7:0] mem [0:4095];
+    output wire [7:0] Dataout;
+
+    reg [7:0] datamemlarge [0:4095];
     integer i;
+
+    // Write: synchronous (posedge Clk) when SRAMWrite = 1
     always @(posedge clk) begin
         if (Reset) begin
-            for (i = 0; i < 4096; i = i + 1) mem[i] <= 8'h00;
+            for (i = 0; i < 4096; i = i + 1) datamemlarge[i] <= 8'h00;
         end else if (SRAMWrite) begin
-            mem[Address] <= Datain;
-        end else if (SRAMRead) begin
-            Dataout <= mem[Address];
+            datamemlarge[Address] <= Datain;
         end
     end
+
+    // Read: combinational, only when SRAMRead = 1. If SRAMRead = 0 → Dataout = 8'b0
+    assign Dataout = (SRAMRead) ? datamemlarge[Address] : 8'h00;
 endmodule
 
 // ====================================================================
-// Stack_256  (Renamed)
+// Stack_256  (Partial structural design)
 // ====================================================================
 module Stack_256(clk, Reset, StackRead, StackWrite, Datain, Dataout);
     input  clk, Reset, StackRead, StackWrite;
-    input  [11:0] Datain;
-    output wire [11:0] Dataout;
+    input  [7:0] Datain;      // Stack uses 8-bit SRAM_256
+    output wire [7:0] Dataout;
 
-    // 8rd-bit stack pointer (points to next free slot; empty = 0)
+    // 8-bit stack pointer (points to next free slot; empty = 0)
     reg [7:0] SP;
     wire [7:0] SP_write_addr;   
     wire [7:0] SP_read_addr;    
     wire [7:0] sram_addr;
-    wire sram_wr;
 
+    // PUSH: Memory[SP] <- Datain, SP <- SP + 1
+    // POP: SP <- SP - 1, Dataout <- Memory[SP]
     assign SP_write_addr = SP;
     assign SP_read_addr  = SP - 8'h01;
 
     assign sram_addr = StackWrite ? SP_write_addr : SP_read_addr;
-    assign sram_wr   = StackWrite;
 
     always @(posedge clk) begin
         if (Reset)
@@ -363,7 +371,16 @@ module Stack_256(clk, Reset, StackRead, StackWrite, Datain, Dataout);
             SP <= SP - 8'h01;   
     end
 
-    SRAM_256 sram(clk, Reset, sram_addr, StackRead, sram_wr, Datain, Dataout);
+    // Memory: 1 × SRAM256 (combinational read)
+    SRAM_256 sram(
+        .clk      (clk),
+        .Reset    (Reset),
+        .Address  (sram_addr),
+        .SRAMRead (StackRead),
+        .SRAMWrite(StackWrite),
+        .Datain   (Datain),
+        .Dataout  (Dataout)
+    );
 endmodule
 
 module and_8bit (a, b, y);
@@ -836,9 +853,9 @@ module Control_Logic(clk, Reset, T0, T1, T2, T3, T4, Zflag, Cflag, OPCODE, PCena
     Mux256to1_1bit ALUSave_Mux_inst(V_ALUSave, OPCODE, T2, ALUSave);
     Mux256to1_1bit ZflagSave_Mux_inst(V_ZflagSave, OPCODE, T2, ZflagSave);
     Mux256to1_1bit CflagSave_Mux_inst(V_CflagSave, OPCODE, T2, CflagSave);
-    Mux256to1_1bit SRAMRead_Mux_inst(V_SRAMRead, OPCODE, T3, SRAMRead);
+    Mux256to1_1bit SRAMRead_Mux_inst(V_SRAMRead, OPCODE, T3 | T4, SRAMRead);
     Mux256to1_1bit SRAMWrite_Mux_inst(V_SRAMWrite, OPCODE, T3, SRAMWrite);
-    Mux256to1_1bit StackRead_Mux_inst(V_StackRead, OPCODE, T3, StackRead);
+    Mux256to1_1bit StackRead_Mux_inst(V_StackRead, OPCODE, T3 | T4, StackRead);
     Mux256to1_1bit StackWrite_Mux_inst(V_StackWrite, OPCODE, T3, StackWrite);
     Mux256to1_1bit INportRead_Mux_inst(V_INportRead, OPCODE, T3, INportRead);
     Mux256to1_1bit OUTportWrite_Mux_inst(V_OUTportWrite, OPCODE, T3, OUTportWrite);

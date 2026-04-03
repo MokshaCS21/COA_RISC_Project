@@ -38,7 +38,7 @@ module RISC_Processor(clk, Reset,
 
     // Memory / Stack / IO outputs
     wire [7:0]  SRAM_Data_Output;
-    wire [11:0] Stack_Data_Output;
+    wire [7:0]  Stack_Data_Output;
     wire [7:0]  Input_Port_Data_Output;
 
     // Control signals
@@ -94,7 +94,7 @@ module RISC_Processor(clk, Reset,
             2556'h0,                  // [255:43]  - 213 entries
             Direct_Address,           // [42]      - 0x2A JMP
             60'h0,                    // [41:37]   - 5 entries (PUSH, POP, UMULT, IN, OUT)
-            Stack_Data_Output,        // [36]      - 0x24 RET
+            {4'h0, Stack_Data_Output}, // [36]     - 0x24 RET (PC is 12-bit, stack is 8-bit)
             Direct_Address,           // [35]      - 0x23 CALL
             Direct_Address,           // [34]      - 0x22 JMPNC
             Direct_Address,           // [33]      - 0x21 JMPC
@@ -257,16 +257,16 @@ module RISC_Processor(clk, Reset,
     // ----------------------------------------------------------------
     // Stack Memory
     // ----------------------------------------------------------------
-    wire [11:0] Stack_Data_In;
-    Mux256to1_12bit Stack_Data_In_Mux_inst(
+    wire [7:0] Stack_Data_In;
+    Mux256to1_8bit Stack_Data_In_Mux_inst(
         .I({
-            2592'h0,                  // [255:40]  - 216 entries
-            {4'h0, ALU_Output_Secondary}, // [39] - 0x27 UMULT
-            12'h0,                    // [38]      - 0x26 POP
-            {4'h0, Register_Data_1},  // [37]      - 0x25 PUSH
-            12'h0,                    // [36]      - 0x24 RET
-            Program_Counter_Value,    // [35]      - 0x23 CALL
-            420'h0                    // [34:0]    - 35 entries
+            1728'h0,                  // [255:40]  - 216 entries
+            ALU_Output_Secondary,      // [39]      - 0x27 UMULT
+            8'h0,                     // [38]      - 0x26 POP
+            Register_Data_1,          // [37]      - 0x25 PUSH
+            8'h0,                     // [36]      - 0x24 RET
+            Program_Counter_Value[7:0], // [35]      - 0x23 CALL (8-bit Stack)
+            280'h0                    // [34:0]    - 35 entries
         }),
         .S(OPCODE),
         .E(1'b1),
@@ -290,8 +290,8 @@ module RISC_Processor(clk, Reset,
             1720'h0,                  // [255:41]  - 215 entries
             Input_Port_Data_Output,   // [40]      - 0x28 IN
             ALU_Output_Primary,       // [39]      - 0x27 UMULT
-            Stack_Data_Output[7:0],   // [38]      - 0x26 POP
-            128'h0,                   // [37:31]   - 7 entries (PUSH, RET, CALL, JMPs, etc.)
+            Stack_Data_Output,        // [38]      - 0x26 POP
+            56'h0,                    // [37:31]   - 7 entries (PUSH, RET, CALL, JMPs, etc.)
             ALU_Output_Primary,       // [30]      - 0x1E ROTLC
             ALU_Output_Primary,       // [29]      - 0x1D ROTRC
             ALU_Output_Primary,       // [28]      - 0x1C ROTL
