@@ -39,6 +39,7 @@ module RISC_Processor(clk, Reset,
     // Memory / Stack / IO outputs
     wire [7:0]  SRAM_Data_Output;
     wire [7:0]  Stack_Data_Output;
+    wire        Stack_Overflow, Stack_Underflow;
     wire [7:0]  Input_Port_Data_Output;
 
     // Control signals
@@ -274,12 +275,14 @@ module RISC_Processor(clk, Reset,
     );
 
     Stack_256 Stack_Memory_inst(
-        .clk       (clk),
-        .Reset     (Reset),
-        .StackRead (Stack_Read),
-        .StackWrite(Stack_Write),
-        .Datain    (Stack_Data_In),
-        .Dataout   (Stack_Data_Output)
+        .clk           (clk),
+        .Reset         (Reset),
+        .StackRead     (Stack_Read),
+        .StackWrite    (Stack_Write),
+        .Datain        (Stack_Data_In),
+        .Dataout       (Stack_Data_Output),
+        .StackOverflow (Stack_Overflow),
+        .StackUnderflow(Stack_Underflow)
     );
 
     // ----------------------------------------------------------------

@@ -342,33 +342,44 @@ module SRAM_4096(clk, Reset, Address, SRAMRead, SRAMWrite, Datain, Dataout);
 endmodule
 
 // ====================================================================
+// ====================================================================
 // Stack_256  (Partial structural design)
 // ====================================================================
-module Stack_256(clk, Reset, StackRead, StackWrite, Datain, Dataout);
+module Stack_256(clk, Reset, StackRead, StackWrite, Datain, Dataout, StackOverflow, StackUnderflow);
     input  clk, Reset, StackRead, StackWrite;
     input  [7:0] Datain;      // Stack uses 8-bit SRAM_256
     output wire [7:0] Dataout;
+    output reg  StackOverflow, StackUnderflow;
 
     // 8-bit stack pointer (points to next free slot; empty = 0)
     reg [7:0] SP;
-    wire [7:0] SP_write_addr;   
-    wire [7:0] SP_read_addr;    
     wire [7:0] sram_addr;
 
-    // PUSH: Memory[SP] <- Datain, SP <- SP + 1
-    // POP: SP <- SP - 1, Dataout <- Memory[SP]
-    assign SP_write_addr = SP;
-    assign SP_read_addr  = SP - 8'h01;
-
-    assign sram_addr = StackWrite ? SP_write_addr : SP_read_addr;
+    // Address Logic:
+    // PUSH: Access index SP.
+    // POP:  Access index SP-1 (if not at 0).
+    assign sram_addr = StackWrite ? SP : ((SP > 8'h00) ? (SP - 8'h01) : 8'h00);
 
     always @(posedge clk) begin
-        if (Reset)
-            SP <= 8'h00;
-        else if (StackWrite)
-            SP <= SP + 8'h01;   
-        else if (StackRead)
-            SP <= SP - 8'h01;   
+        if (Reset) begin
+            SP             <= 8'h00;
+            StackOverflow  <= 1'b0;
+            StackUnderflow <= 1'b0;
+        end else begin
+            // Non-wrapping SP update logic
+            if (StackWrite) begin
+                if (SP == 8'hFF)
+                    StackOverflow <= 1'b1; // Flag latched until Reset
+                else
+                    SP <= SP + 8'h01;   
+            end
+            if (StackRead) begin
+                if (SP == 8'h00)
+                    StackUnderflow <= 1'b1; // Flag latched until Reset
+                else
+                    SP <= SP - 8'h01;   
+            end
+        end
     end
 
     // Memory: 1 × SRAM256 (combinational read)
@@ -377,7 +388,7 @@ module Stack_256(clk, Reset, StackRead, StackWrite, Datain, Dataout);
         .Reset    (Reset),
         .Address  (sram_addr),
         .SRAMRead (StackRead),
-        .SRAMWrite(StackWrite),
+        .SRAMWrite(StackWrite && (SP < 8'hFF)), // Ensure write only if stack not full
         .Datain   (Datain),
         .Dataout  (Dataout)
     );

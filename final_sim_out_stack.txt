@@ -1,0 +1,8 @@
+WARNING: ./subcomponents.v:276: $readmemb(memfile.txt): Not enough words in the file for the requested range [0:4095].
+VCD info: dumpfile Wavedump.vcd opened for output.
+=== Simulation Complete ===
+OutExtWorld1 = 00
+OutExtWorld2 = 19
+OutExtWorld3 = 00
+OutExtWorld4 = 00
+RISC_tb.v:41: $finish called at 210000000 (1ps)
